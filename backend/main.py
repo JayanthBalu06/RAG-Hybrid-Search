@@ -1,8 +1,10 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
+from pydantic import BaseModel, Field
 
 from normalizer import normalize
+from chunker import chunk, Strategy
 
 app = FastAPI()
 
@@ -12,6 +14,15 @@ app.add_middleware(
     allow_methods=["POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+class ChunkRequest(BaseModel):
+    text: str
+    strategy: Strategy = "fixed"
+    chunk_size: int = Field(512, gt=0)
+    chunk_overlap: int = Field(50, ge=0)
+    similarity_threshold: float = Field(0.75, gt=0, le=1)
+    min_chunk_chars: int = Field(100, gt=0)
 
 
 @app.post("/documents")
@@ -30,3 +41,23 @@ async def upload_documents(files: List[UploadFile] = File(...)):
             "text": text,
         })
     return {"documents": results}
+
+
+@app.post("/chunk")
+async def chunk_text(req: ChunkRequest):
+    try:
+        chunks = chunk(
+            text=req.text,
+            strategy=req.strategy,
+            chunk_size=req.chunk_size,
+            chunk_overlap=req.chunk_overlap,
+            similarity_threshold=req.similarity_threshold,
+            min_chunk_chars=req.min_chunk_chars,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return {
+        "strategy": req.strategy,
+        "chunk_count": len(chunks),
+        "chunks": [c.to_dict() for c in chunks],
+    }
