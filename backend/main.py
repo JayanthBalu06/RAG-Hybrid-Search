@@ -4,7 +4,8 @@ from typing import List
 from pydantic import BaseModel, Field
 
 from normalizer import normalize
-from chunker import chunk, Strategy
+from chunker import chunk, Strategy, Chunk
+from indexer import index_chunks
 
 app = FastAPI()
 
@@ -14,6 +15,18 @@ app.add_middleware(
     allow_methods=["POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+class ChunkInput(BaseModel):
+    text: str
+    index: int
+    strategy: str
+    metadata: dict = {}
+
+
+class IndexRequest(BaseModel):
+    source: str
+    chunks: List[ChunkInput]
 
 
 class ChunkRequest(BaseModel):
@@ -61,3 +74,16 @@ async def chunk_text(req: ChunkRequest):
         "chunk_count": len(chunks),
         "chunks": [c.to_dict() for c in chunks],
     }
+
+
+@app.post("/index")
+async def index_documents(req: IndexRequest):
+    chunks = [
+        Chunk(text=c.text, index=c.index, strategy=c.strategy, metadata=c.metadata)
+        for c in req.chunks
+    ]
+    try:
+        result = await index_chunks(chunks, req.source)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return result.to_dict()

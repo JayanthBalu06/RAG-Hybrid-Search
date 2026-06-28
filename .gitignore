@@ -29,3 +29,6 @@ Thumbs.db
 
 # Claude session memory
 memory/
+
+# Generated index data
+data/

@@ -8,3 +8,5 @@ markdown
 langchain-text-splitters
 openai
 numpy
+chromadb
+rank-bm25
